@@ -2,19 +2,20 @@ from __future__ import print_function
 import keras
 from keras.datasets import mnist
 from keras.models import Sequential
-from keras.utils import to_categorical
+from keras.utils import np_utils
 from keras import layers, Model
 from keras.layers import Input, Dense, Dropout, Flatten, Reshape, Activation, Lambda, LeakyReLU
 from keras.layers import Conv2D, AveragePooling2D, Conv2DTranspose, BatchNormalization
-from keras_contrib.layers.normalization.instancenormalization import InstanceNormalization
-from keras.optimizers import Adam, SGD
+from tensorflow_addons.layers import InstanceNormalization
+from tensorflow.keras.optimizers import Adam, SGD
 from keras.metrics import binary_accuracy
 from keras import backend as K
 import os, cv2, re, random
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.random import seed
-from tensorflow import set_random_seed
+import tensorflow._api.v2.compat.v1 as tf
+from tensorflow._api.v2.compat.v1 import set_random_seed
 
 class DCGAN():
 
@@ -39,7 +40,7 @@ class DCGAN():
 
         outputs = self.build_target(self.G(inputs))
         self.target = Model(inputs, outputs)
-        self.target.compile(loss=keras.losses.categorical_crossentropy, optimizer=keras.optimizers.Adam(), metrics=['accuracy'])
+        self.target.compile(loss=keras.losses.categorical_crossentropy, optimizer=tf.keras.optimizers.Adam(), metrics=['accuracy'])
         self.target.summary()
 
         self.stacked = Model(inputs=inputs, outputs=[self.G(inputs), self.D(self.G(inputs)), self.target(self.G(inputs))])
@@ -162,8 +163,8 @@ class DCGAN():
         #Update only G params
         self.D.trainable = False
         self.target.trainable = False
-        stacked_loss = self.stacked.train_on_batch(x_batch, [x_batch, np.ones((len(x_batch), 1)), to_categorical(flipped_y_batch)] )
-        #stacked_loss = self.stacked.train_on_batch(x_batch, [x_batch, np.ones((len(x_batch), 1)), to_categorical(y_batch)] )
+        stacked_loss = self.stacked.train_on_batch(x_batch, [x_batch, np.ones((len(x_batch), 1)), np_utils.to_categorical(flipped_y_batch)] )
+        #stacked_loss = self.stacked.train_on_batch(x_batch, [x_batch, np.ones((len(x_batch), 1)), np_utils.to_categorical(y_batch)] )
         #input to full GAN is original image
         #output 1 label for generated image is original image
         #output 2 label for discriminator classification is real/fake; G wants D to mark these as real=1
@@ -188,7 +189,7 @@ class DCGAN():
         x_train = np.array(x_train)
         y_train = np.array(y_train)
 
-        self.target.fit(x_train, to_categorical(y_train), epochs=5) #pretrain target
+        self.target.fit(x_train, np_utils.to_categorical(y_train), epochs=5) #pretrain target
 
         epochs = 50
         batch_size = 128
@@ -216,7 +217,7 @@ class DCGAN():
             (d_loss, d_acc) = self.train_D_on_batch((x_batch, Gx_batch, y_batch))
             (g_loss, hinge_loss, gan_loss, adv_loss) = self.train_stacked_on_batch((x_batch, Gx_batch, y_batch))
 
-            target_acc = self.target.test_on_batch(Gx_batch, to_categorical(y_batch))[1]
+            target_acc = self.target.test_on_batch(Gx_batch, np_utils.to_categorical(y_batch))[1]
             target_predictions = self.target.predict_on_batch(Gx_batch) #(96,2)
 
             misclassified = np.where(y_batch.reshape((len(x_train) % batch_size, )) != np.argmax(target_predictions, axis=1))[0]
